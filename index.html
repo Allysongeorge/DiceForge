@@ -1,0 +1,149 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <meta
+    name="description"
+    content="DiceForge RPG: role dados, calcule resultados e acompanhe suas aventuras."
+  >
+
+  <title>DiceForge RPG | Rolador de Dados</title>
+
+  <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
+</head>
+
+<body>
+  <div class="app">
+
+    <header class="hero">
+      <div class="logo-dado" aria-hidden="true">D20</div>
+      <p class="eyebrow">SUA AVENTURA COMEÇA AQUI</p>
+      <h1>DiceForge <span>RPG</span></h1>
+      <p class="subtitle">
+        O destino está nos dados. Prepare sua próxima aventura.
+      </p>
+    </header>
+
+    <main>
+      <section class="panel roller">
+        <div class="section-heading">
+          <span class="section-icon" aria-hidden="true">⚄</span>
+          <div>
+            <h2>Rolador de dados</h2>
+            <p>Digite sua expressão e deixe a sorte decidir.</p>
+          </div>
+        </div>
+
+        <form id="roll-form">
+          <label for="expression">Expressão de rolagem</label>
+
+          <div class="input-row">
+            <input
+              id="expression"
+              name="expression"
+              type="text"
+              value="3d6 + 4"
+              placeholder="Ex.: 2d20 + 5"
+              autocomplete="off"
+              maxlength="100"
+              required
+            >
+
+            <button type="submit" id="roll-button">
+              ⚄ Rolar
+            </button>
+          </div>
+
+          <p class="hint">
+            Exemplos: 2d20 + 5, 4d6, 1d8 + 2d6 + 4
+          </p>
+
+          <div class="quick-rolls">
+            <span>Rolagens rápidas:</span>
+            <button type="button" class="quick-roll" data-expression="1d20">
+              d20
+            </button>
+            <button type="button" class="quick-roll" data-expression="2d20 + 5">
+              2d20 + 5
+            </button>
+            <button type="button" class="quick-roll" data-expression="4d6">
+              4d6
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel results" aria-live="polite">
+        <div class="section-heading">
+          <span class="section-icon" aria-hidden="true">✧</span>
+          <div>
+            <h2>Resultado da rolagem</h2>
+            <p id="result-description">Aguardando sua primeira rolagem...</p>
+          </div>
+        </div>
+
+        <div id="dice-results" class="dice-results">
+          <p class="empty-state">
+            Os dados aguardam seu comando, aventureiro.
+          </p>
+        </div>
+
+        <div class="total-display">
+          <span>Resultado total</span>
+          <strong id="total-result">—</strong>
+        </div>
+
+        <div class="stats-grid">
+          <article class="stat-card">
+            <span>Média observada</span>
+            <strong id="average-result">—</strong>
+          </article>
+
+          <article class="stat-card">
+            <span>Mínimo possível</span>
+            <strong id="min-result">—</strong>
+          </article>
+
+          <article class="stat-card">
+            <span>Máximo possível</span>
+            <strong id="max-result">—</strong>
+          </article>
+        </div>
+
+        <p id="error-message" class="error-message" role="alert"></p>
+      </section>
+
+      <section class="panel history">
+        <div class="section-heading">
+          <span class="section-icon" aria-hidden="true">📜</span>
+          <div>
+            <h2>Histórico de rolagens</h2>
+            <p>Os registros das suas últimas aventuras.</p>
+          </div>
+        </div>
+
+        <div class="history-actions">
+          <span id="history-count">0 rolagens</span>
+          <button type="button" id="clear-history" class="secondary-button">
+            Limpar histórico
+          </button>
+        </div>
+
+        <ul id="history-list">
+          <li class="empty-state">Nenhuma rolagem registrada.</li>
+        </ul>
+      </section>
+    </main>
+
+    <footer>
+      <p>✦ DiceForge RPG · Forjado para suas aventuras ✦</p>
+      <p>Um projeto de desenvolvimento web para aventureiros.</p>
+    </footer>
+
+  </div>
+</body>
+</html>
