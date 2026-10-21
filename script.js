@@ -203,10 +203,15 @@ function rollExpression(expression) {
 
   const total = diceTotal + modifierTotal;
 
-  const average = dice.length > 0
-    ? dice.reduce((sum, die) => sum + Math.abs(die.value), 0)
-      / dice.length
-    : null;
+  
+const average = terms.reduce((sum, term) => {
+  if (term.type === "modifier") {
+    return sum + term.sign * term.value;
+  }
+
+  return sum + term.sign * term.quantity * (term.sides + 1) / 2;
+}, 0);
+
 
   return {
     expression,
