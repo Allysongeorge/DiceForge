@@ -36,105 +36,109 @@ let history = loadHistory();
 // ============================================
 
 function parseExpression(expression) {
-  const normalized = expression
-    .toLowerCase()
-    .replace(/\s+/g, "");
+  const normalized = expression.toLowerCase().replace(/\s+/g, "");
+  if (!normalized) throw new Error("Digite uma expressão.");
 
-  if (!normalized) {
-    throw new Error("Digite uma expressão de rolagem.");
+  const tokens = normalized.match(/\d*d\d+|\d+|[()+\-*/]/g) || [];
+  if (tokens.join("") !== normalized) {
+    throw new Error("Expressão inválida. Confira os símbolos utilizados.");
   }
 
-  const terms = [];
   let position = 0;
+  let diceCount = 0;
 
-  while (position < normalized.length) {
-    let sign = 1;
+  function peek() {
+    return tokens[position];
+  }
 
-    if (normalized[position] === "+") {
-      position++;
-    } else if (normalized[position] === "-") {
-      sign = -1;
-      position++;
-    } else if (position > 0) {
-      throw new Error(
-        "Use + ou - entre os termos da expressão."
-      );
+  function consume() {
+    return tokens[position++];
+  }
+
+  function parsePrimary() {
+    const token = consume();
+
+    if (token === undefined) {
+      throw new Error("Expressão incompleta.");
     }
 
-    const remaining = normalized.slice(position);
+    if (token === "(") {
+      const node = parseAddSub();
+      if (consume() !== ")") {
+        throw new Error("Está faltando um parêntese de fechamento.");
+      }
+      return node;
+    }
 
-    // Termo de dado: 2d20, d6, 3d8...
-    const diceMatch = remaining.match(/^(\d*)d(\d+)/);
+    if (token === "+" || token === "-") {
+      return {
+        type: "unary",
+        sign: token === "-" ? -1 : 1,
+        child: parsePrimary()
+      };
+    }
 
-    if (diceMatch) {
-      const quantity = diceMatch[1] === ""
-        ? 1
-        : Number(diceMatch[1]);
-
-      const sides = Number(diceMatch[2]);
+    if (/^\d*d\d+$/.test(token)) {
+      const match = token.match(/^(\d*)d(\d+)$/);
+      const quantity = match[1] === "" ? 1 : Number(match[1]);
+      const sides = Number(match[2]);
 
       if (quantity < 1 || quantity > MAX_DICE) {
-        throw new Error(
-          `Cada grupo deve ter entre 1 e ${MAX_DICE} dados.`
-        );
+        throw new Error(`Use entre 1 e ${MAX_DICE} dados por grupo.`);
       }
 
-      if (
-        !Number.isSafeInteger(sides) ||
-        sides < 2 ||
-        sides > MAX_SIDES
-      ) {
-        throw new Error(
-          `Cada dado deve ter entre 2 e ${MAX_SIDES} lados.`
-        );
+      if (sides < 2 || sides > MAX_SIDES) {
+        throw new Error(`Os dados devem ter entre 2 e ${MAX_SIDES} lados.`);
       }
 
-      terms.push({
-        type: "dice",
-        quantity,
-        sides,
-        sign
-      });
+      diceCount += quantity;
+      if (diceCount > MAX_DICE) {
+        throw new Error(`O limite total é de ${MAX_DICE} dados por rolagem.`);
+      }
 
-      position += diceMatch[0].length;
-      continue;
+      return { type: "dice", quantity, sides };
     }
 
-    // Termo numérico: +5, -3, +10...
-    const numberMatch = remaining.match(/^\d+/);
-
-    if (numberMatch) {
-      const value = Number(numberMatch[0]);
-
-      if (
-        !Number.isSafeInteger(value) ||
-        value > 1000000
-      ) {
-        throw new Error(
-          "Os modificadores devem estar entre -1000000 e 1000000."
-        );
+    if (/^\d+$/.test(token)) {
+      const value = Number(token);
+      if (!Number.isSafeInteger(value) || value > 1000000) {
+        throw new Error("Número muito grande.");
       }
-
-      terms.push({
-        type: "modifier",
-        value,
-        sign
-      });
-
-      position += numberMatch[0].length;
-      continue;
+      return { type: "number", value };
     }
 
-    throw new Error(
-      `Não consegui interpretar: "${remaining}".`
-    );
+    throw new Error(`Não esperava "${token}".`);
   }
 
-  if (terms.length === 0) {
-    throw new Error("A expressão não contém termos válidos.");
+  function parseMulDiv() {
+    let node = parsePrimary();
+
+    while (peek() === "*" || peek() === "/") {
+      const operator = consume();
+      node = { type: "binary", operator, left: node, right: parsePrimary() };
+    }
+
+    return node;
   }
 
-  return terms;
+  function parseAddSub() {
+    let node = parseMulDiv();
+
+    while (peek() === "+" || peek() === "-") {
+      const operator = consume();
+      node = { type: "binary", operator, left: node, right: parseMulDiv() };
+    }
+
+    return node;
+  }
+
+  const ast = parseAddSub();
+
+  if (position !== tokens.length) {
+    throw new Error(`Símbolo inesperado: "${peek()}".`);
+  }
+
+  return ast;
 }
 
 // ============================================
@@ -159,65 +163,66 @@ function rollDie(sides) {
 }
 
 function rollExpression(expression) {
-  const terms = parseExpression(expression);
-
+  const ast = parseExpression(expression);
   const dice = [];
-  let modifierTotal = 0;
-  let minimum = 0;
-  let maximum = 0;
 
-  for (const term of terms) {
-    if (term.type === "modifier") {
-      const modifier = term.sign * term.value;
+  function calculate(node, mode) {
+    if (node.type === "number") return node.value;
 
-      modifierTotal += modifier;
-      minimum += modifier;
-      maximum += modifier;
-
-      continue;
+    if (node.type === "unary") {
+      return node.sign * calculate(node.child, mode);
     }
 
-    for (let i = 0; i < term.quantity; i++) {
-      const value = rollDie(term.sides) * term.sign;
+    if (node.type === "dice") {
+      if (mode === "total") {
+        let sum = 0;
 
-      dice.push({
-        sides: term.sides,
-        value,
-        sign: term.sign
-      });
+        for (let i = 0; i < node.quantity; i++) {
+          const value = rollDie(node.sides);
+          dice.push({ sides: node.sides, value, sign: 1 });
+          sum += value;
+        }
 
-      if (term.sign === 1) {
-        minimum += 1;
-        maximum += term.sides;
-      } else {
-        minimum -= term.sides;
-        maximum -= 1;
+        return sum;
+      }
+
+      if (mode === "average") {
+        return node.quantity * (node.sides + 1) / 2;
+      }
+
+      if (mode === "minimum") return node.quantity;
+      if (mode === "maximum") return node.quantity * node.sides;
+    }
+
+    if (node.type === "binary") {
+      const left = calculate(node.left, mode);
+      const right = calculate(node.right, mode);
+
+      if (node.operator === "+") return left + right;
+      if (node.operator === "-") return left - right;
+      if (node.operator === "*") return left * right;
+
+      if (node.operator === "/") {
+        if (right === 0) {
+          throw new Error("Não é possível dividir por zero.");
+        }
+        return left / right;
       }
     }
+
+    throw new Error("Não foi possível calcular essa expressão.");
   }
 
-  const diceTotal = dice.reduce(
-    (sum, die) => sum + die.value,
-    0
-  );
-
-  const total = diceTotal + modifierTotal;
-
-  
-const average = terms.reduce((sum, term) => {
-  if (term.type === "modifier") {
-    return sum + term.sign * term.value;
-  }
-
-  return sum + term.sign * term.quantity * (term.sides + 1) / 2;
-}, 0);
-
+  const total = calculate(ast, "total");
+  const average = calculate(ast, "average");
+  const minimum = calculate(ast, "minimum");
+  const maximum = calculate(ast, "maximum");
 
   return {
     expression,
     dice,
-    modifierTotal,
-    diceTotal,
+    modifierTotal: 0,
+    diceTotal: total,
     total,
     average,
     minimum,
